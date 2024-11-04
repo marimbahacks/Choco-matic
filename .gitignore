@@ -1,8 +1,6 @@
 #Basic gitignore
 
-build
-build-*
-build/
+build/*
 
 .vscode/*
 !.vscode/settings.json
