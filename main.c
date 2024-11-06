@@ -6,48 +6,33 @@
 #define ROTATE_MIN 500
 
 #define PWM_CONTROL_GPIO 0
-#define PULL_UP_GPIO 2
-#define DROP_DOWN_GPIO 16
+#define LIFT_UP_GPIO 2
+#define LOWER_DOWN_GPIO 16
 
 
-int check_button(int pull_up_status, int drop_down_status){
-    //If green button IS pressed down, move at full speed clockwise (up)
+uint check_button(int pull_up_status, int drop_down_status, uint lift_speed, uint lower_speed){
+    //If green button is pressed down, move at full speed clockwise (up)
     if (!gpio_get(pull_up_status)){
-        return 180;
-    }
+        return lift_speed;
+    }   
     //If red button is pressed down & green is not pressed, move full speed counter-clockwise (down)
     else if (!gpio_get(drop_down_status)){
-        return 0;
+        return lower_speed;   
     }
     //In all other scenarios, neutral motor speed/position
     return 90;
     
+    //I have a bone to pick with MISRA not allowing multiple return statements
 }
-//UF2 File, Init to defaults
-int main(){
 
-    stdio_init_all();
-
-    //State GPIO 0 is allocated to PWM
-    gpio_set_function(PWM_CONTROL_GPIO, GPIO_FUNC_PWM);
-    pwm_set_gpio_level(PWM_CONTROL_GPIO, 0);
-
-    //Prep button GPIOs
-    gpio_init(PULL_UP_GPIO);
-    gpio_init(DROP_DOWN_GPIO);
-
-    //Directionally pressing down makes the action
-    gpio_set_dir(PULL_UP_GPIO, GPIO_IN);
-    gpio_set_dir(DROP_DOWN_GPIO, GPIO_IN);
-
-    gpio_pull_up(PULL_UP_GPIO);
-    gpio_pull_up(DROP_DOWN_GPIO);
-
-
+void pwm_pin_setup(uint control_pin){
+    //Set PWM functionality with default of 0
+    gpio_set_function(control_pin, GPIO_FUNC_PWM);
+    pwm_set_gpio_level(control_pin, 0);
 
     //Find hardware PWM information
-    uint slice_num = pwm_gpio_to_slice_num(PWM_CONTROL_GPIO);
-    uint channel = pwm_gpio_to_channel(PWM_CONTROL_GPIO);
+    uint slice_num = pwm_gpio_to_slice_num(control_pin);
+    uint channel = pwm_gpio_to_channel(control_pin);
 
     //PWM Adjustment Levers (Servos typically are 50hz w/20s periods holdover
     //from pulse-position-modulation?)
@@ -75,24 +60,48 @@ int main(){
     //Change default config to include divider
     pwm_config_set_clkdiv(&config, (float)clk_div);
 
-
     //Set wrap number (20s)
     pwm_config_set_wrap(&config, period);
 
-    //Initialize the slices found earlier
+    //Initialize the slice found earlier
     pwm_init(slice_num, &config, false);
     // Enable PWM after setup is complete
     pwm_set_enabled(slice_num, true);
+}
 
-    //period = clock / Hz (not MHz)
+void button_setup(uint lift_button_pin, uint lower_button_pin){
+    //Prep Button GPIOs
+    gpio_init(lift_button_pin);
+    gpio_init(lower_button_pin);
+
+    //Directionally pressing down makes the action
+    gpio_set_dir(lift_button_pin, GPIO_IN);
+    gpio_set_dir(lower_button_pin, GPIO_IN);
+
+    gpio_pull_up(lift_button_pin);
+    gpio_pull_up(lower_button_pin);
+
+}
+
+//UF2 File, Init to defaults
+int main(){
+
+    stdio_init_all();
+
+    //Maybe struct with info on button + speed combined?
+    button_setup(LIFT_UP_GPIO, LOWER_DOWN_GPIO);
+    pwm_pin_setup(PWM_CONTROL_GPIO);
+
+    //Potential to adjust speeds, maybe ask user later?
+    uint lift_speed = 180;
+    uint lower_speed = 0; 
+
     while(true){
-        int degree = check_button(PULL_UP_GPIO, DROP_DOWN_GPIO); 
+        uint degree = check_button(LIFT_UP_GPIO, LOWER_DOWN_GPIO, lift_speed, lower_speed); 
         //Current servo accepts PWM between 500-2500mus for max values)
         int duty = (((float)(ROTATE_MAX - ROTATE_MIN) / 180) * degree) + ROTATE_MIN;
         pwm_set_gpio_level(0, duty);
     }
-   
-
 }
 
 
