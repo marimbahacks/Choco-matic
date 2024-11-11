@@ -1,6 +1,7 @@
 #include "pico/stdlib.h"
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
+#include <stdio.h>
 
 #define ROTATE_MAX 2500
 #define ROTATE_MIN 500
@@ -23,6 +24,13 @@ uint check_button(int pull_up_status, int drop_down_status, uint lift_speed, uin
     return 90;
     
     //I have a bone to pick with MISRA not allowing multiple return statements
+}
+
+//Move to interrupts from constant looping on button checks
+void check_button_callback(uint control_pin, uint32_t events){
+    printf("Interupt triggered on GPIO %d with event %d \n", control_pin, events);
+
+
 }
 
 void pwm_pin_setup(uint control_pin){
@@ -81,6 +89,10 @@ void button_setup(uint lift_button_pin, uint lower_button_pin){
     gpio_pull_up(lift_button_pin);
     gpio_pull_up(lower_button_pin);
 
+    //Set up interrupt (event is falling edge on button press)
+    // 0x4 is edge low from SDK docs
+    gpio_set_irq_enabled_with_callback(lift_button_pin, 0x04, 1, check_button_callback);
+    gpio_set_irq_enabled_with_callback(lower_button_pin, 0x04, 1, check_button_callback);
 }
 
 //UF2 File, Init to defaults
@@ -96,11 +108,14 @@ int main(){
     uint lift_speed = 180;
     uint lower_speed = 0; 
 
-    while(true){
-        uint degree = check_button(LIFT_UP_GPIO, LOWER_DOWN_GPIO, lift_speed, lower_speed); 
-        //Current servo accepts PWM between 500-2500mus for max values)
-        int duty = (((float)(ROTATE_MAX - ROTATE_MIN) / 180) * degree) + ROTATE_MIN;
-        pwm_set_gpio_level(0, duty);
+    // while(true){
+    //     uint degree = check_button(LIFT_UP_GPIO, LOWER_DOWN_GPIO, lift_speed, lower_speed); 
+    //     //Current servo accepts PWM between 500-2500mus for max values)
+    //     int duty = (((float)(ROTATE_MAX - ROTATE_MIN) / 180) * degree) + ROTATE_MIN;
+    //     pwm_set_gpio_level(0, duty);
+    // }
+    while (true){
+        tight_loop_contents();
     }
 }
 
