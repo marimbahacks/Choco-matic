@@ -10,27 +10,43 @@
 #define LIFT_UP_GPIO 2
 #define LOWER_DOWN_GPIO 16
 
+#define DEBOUNCE_TIMER 50
 
-uint check_button(int pull_up_status, int drop_down_status, uint lift_speed, uint lower_speed){
+volatile uint interrupt_flag = 0;
+volatile enum gpio_irq_level interrupt_state = GPIO_IRQ_LEVEL_LOW;
+
+uint degree_conversion(uint degree){
+    return (((float)(ROTATE_MAX - ROTATE_MIN) / 180) * degree) + ROTATE_MIN;
+}
+
+void set_rotation(int pin_pressed, enum gpio_irq_level button_state){
+    if (interrupt_state == GPIO_IRQ_EDGE_FALL){
+        //90 should be neutral state
+        pwm_set_gpio_level(pin_pressed, degree_conversion(90));
+    }
     //If green button is pressed down, move at full speed clockwise (up)
-    if (!gpio_get(pull_up_status)){
-        return lift_speed;
+    if (pin_pressed == LIFT_UP_GPIO){
+        //Max speed forward
+        pwm_set_gpio_level(pin_pressed, degree_conversion(180));
     }   
     //If red button is pressed down & green is not pressed, move full speed counter-clockwise (down)
-    else if (!gpio_get(drop_down_status)){
-        return lower_speed;   
+    else if (pin_pressed == LOWER_DOWN_GPIO){
+        //Max speed backward
+        pwm_set_gpio_level(pin_pressed, degree_conversion(0));
+
     }
     //In all other scenarios, neutral motor speed/position
-    return 90;
-    
+    printf("No control pin pressed \n");
+    pwm_set_gpio_level(pin_pressed, degree_conversion(90));
     //I have a bone to pick with MISRA not allowing multiple return statements
 }
 
-//Move to interrupts from constant looping on button checks
+//Move to interrupts
 void check_button_callback(uint control_pin, uint32_t events){
-    printf("Interupt triggered on GPIO %d with event %d \n", control_pin, events);
-
-
+   //printf("Interupt triggered on GPIO %d with event %d \n", control_pin, events);
+   interrupt_flag = control_pin;
+   interrupt_state = gpio_get(control_pin);
+   printf("Interrupt state: %d \n", interrupt_state);   
 }
 
 void pwm_pin_setup(uint control_pin){
@@ -91,8 +107,17 @@ void button_setup(uint lift_button_pin, uint lower_button_pin){
 
     //Set up interrupt (event is falling edge on button press)
     // 0x4 is edge low from SDK docs
-    gpio_set_irq_enabled_with_callback(lift_button_pin, 0x04, 1, check_button_callback);
-    gpio_set_irq_enabled_with_callback(lower_button_pin, 0x04, 1, check_button_callback);
+    gpio_set_irq_enabled_with_callback(lift_button_pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, 1, check_button_callback);
+    
+    gpio_set_irq_enabled_with_callback(lower_button_pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, 1, check_button_callback);
+}
+
+bool debounce_check(uint32_t previous_time, uint pin){
+    uint32_t current_time = to_ms_since_boot(get_absolute_time());
+    if (current_time - previous_time > DEBOUNCE_TIMER){
+        return true;
+    }
+    return false;
 }
 
 //UF2 File, Init to defaults
@@ -107,15 +132,30 @@ int main(){
     //Potential to adjust speeds, maybe ask user later?
     uint lift_speed = 180;
     uint lower_speed = 0; 
+    uint32_t time = to_ms_since_boot(get_absolute_time());
 
-    // while(true){
-    //     uint degree = check_button(LIFT_UP_GPIO, LOWER_DOWN_GPIO, lift_speed, lower_speed); 
-    //     //Current servo accepts PWM between 500-2500mus for max values)
-    //     int duty = (((float)(ROTATE_MAX - ROTATE_MIN) / 180) * degree) + ROTATE_MIN;
-    //     pwm_set_gpio_level(0, duty);
-    // }
+    set_rotation(interrupt_flag, interrupt_state);
+
+
     while (true){
         tight_loop_contents();
+
+        if (interrupt_state == GPIO_IRQ_EDGE_FALL){
+            printf("Pin %d is no longer pressed\n", interrupt_flag);
+            set_rotation(interrupt_flag, interrupt_state);
+            interrupt_flag = 0;
+        }
+        else if (interrupt_flag != 0 && debounce_check(time, interrupt_flag)){
+            set_rotation(interrupt_flag, interrupt_state);
+            printf("Interrupt from pin %d success\n", interrupt_flag);
+            time = to_ms_since_boot(get_absolute_time());
+            interrupt_flag = 0;
+        }
+        else if (interrupt_flag != 0){
+            printf("Debounced from pin %d\n", interrupt_flag);
+            interrupt_flag = 0;
+        }
+    
     }
 }
 
