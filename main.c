@@ -7,8 +7,11 @@
 #define ROTATE_MIN 500
 
 #define PWM_CONTROL_GPIO 0
+#define PWM_REVERSE_CONTROL_GPIO 14
 #define LIFT_UP_GPIO 2
 #define LOWER_DOWN_GPIO 16
+#define ENABLE_PIN_1 18
+#define ENABLE_PIN_2 19
 
 #define DEBOUNCE_TIMER 50
 
@@ -20,6 +23,9 @@ uint degree_conversion(uint degree){
 }
 
 void set_rotation(int pin_pressed, enum gpio_irq_level button_state){
+
+    
+    //6250 period, let's do half at first?
     if (interrupt_state == GPIO_IRQ_EDGE_FALL){
         //90 should be neutral state
         pwm_set_gpio_level(pin_pressed, degree_conversion(90));
@@ -58,17 +64,16 @@ void pwm_pin_setup(uint control_pin){
     uint slice_num = pwm_gpio_to_slice_num(control_pin);
     uint channel = pwm_gpio_to_channel(control_pin);
 
-    //PWM Adjustment Levers (Servos typically are 50hz w/20s periods holdover
-    //from pulse-position-modulation?)
-    uint period = 20000;
-    uint desired_output_hz = 50;
+    //PWM Adjustment Levers (12V DC Motor estimated start: 20kHz instead of 50Hz servo
+    uint period = 6250;
+    uint desired_output_hz = 10000;
 
     //Get base of system clock (should be 125MHz)
     uint32_t clock = clock_get_hz(clk_sys);
     //Clock divider needed as lowest PWM freq of pi pico is 1.9kHz without
-    // div = clock (125MHz) / (normal period of 50Hz cycle is 20s, 20000 ms) * freq desired (50Hz)
+    // div = clock (125MHz) / period of 6250 * freq desired (20000) makes clk div = 1
     uint32_t clk_div = clock / (period * desired_output_hz);
-
+    printf("Clock divider is %d for PWM Pin %d\n", clk_div, control_pin);
     //Clock division is 4 bit unsigned int (therefore 255 max)
     //and sent in as float, therefore clock_divide can never be <1 or >255
     if (clk_div < 1){
@@ -84,13 +89,16 @@ void pwm_pin_setup(uint control_pin){
     //Change default config to include divider
     pwm_config_set_clkdiv(&config, (float)clk_div);
 
-    //Set wrap number (20s)
+    //Set wrap number
     pwm_config_set_wrap(&config, period);
+
+    pwm_set_chan_level(slice_num, channel, 6249);
 
     //Initialize the slice found earlier
     pwm_init(slice_num, &config, false);
     // Enable PWM after setup is complete
     pwm_set_enabled(slice_num, true);
+    printf("PWM Pin %d is enabled\n", control_pin);
 }
 
 void button_setup(uint lift_button_pin, uint lower_button_pin){
@@ -128,35 +136,59 @@ int main(){
     //Maybe struct with info on button + speed combined?
     button_setup(LIFT_UP_GPIO, LOWER_DOWN_GPIO);
     pwm_pin_setup(PWM_CONTROL_GPIO);
+    pwm_pin_setup(PWM_REVERSE_CONTROL_GPIO);
 
+    gpio_init(ENABLE_PIN_1);
+    gpio_init(ENABLE_PIN_2);
+
+    gpio_set_dir(ENABLE_PIN_1, GPIO_OUT);
+    gpio_set_dir(ENABLE_PIN_2, GPIO_OUT);
+
+    gpio_put(ENABLE_PIN_1, 1);
+    gpio_put(ENABLE_PIN_2, 1);
     //Potential to adjust speeds, maybe ask user later?
     uint lift_speed = 180;
     uint lower_speed = 0; 
     uint32_t time = to_ms_since_boot(get_absolute_time());
 
-    set_rotation(interrupt_flag, interrupt_state);
-
-
-    while (true){
-        tight_loop_contents();
-
-        if (interrupt_state == GPIO_IRQ_EDGE_FALL){
-            printf("Pin %d is no longer pressed\n", interrupt_flag);
-            set_rotation(interrupt_flag, interrupt_state);
-            interrupt_flag = 0;
-        }
-        else if (interrupt_flag != 0 && debounce_check(time, interrupt_flag)){
-            set_rotation(interrupt_flag, interrupt_state);
-            printf("Interrupt from pin %d success\n", interrupt_flag);
-            time = to_ms_since_boot(get_absolute_time());
-            interrupt_flag = 0;
-        }
-        else if (interrupt_flag != 0){
-            printf("Debounced from pin %d\n", interrupt_flag);
-            interrupt_flag = 0;
-        }
-    
+    while(true){
+        printf("Starting Forward\n");
+        pwm_set_gpio_level(PWM_CONTROL_GPIO, 6248);
+        pwm_set_gpio_level(PWM_REVERSE_CONTROL_GPIO, 0);
+        sleep_ms((uint32_t)5000);
+        printf("Stopping\n");
+        pwm_set_gpio_level(PWM_CONTROL_GPIO, 0);
+        pwm_set_gpio_level(PWM_REVERSE_CONTROL_GPIO, 0);
+        sleep_ms((uint32_t)5000);
+        printf("Starting Reverse\n");
+        pwm_set_gpio_level(PWM_CONTROL_GPIO, 0);
+        pwm_set_gpio_level(PWM_REVERSE_CONTROL_GPIO, 6248);
+        sleep_ms((uint32_t)5000);
     }
+
+    // set_rotation(interrupt_flag, interrupt_state);
+
+
+    // while (true){
+    //     tight_loop_contents();
+
+    //     if (interrupt_state == GPIO_IRQ_EDGE_FALL){
+    //         printf("Pin %d is no longer pressed\n", interrupt_flag);
+    //         set_rotation(interrupt_flag, interrupt_state);
+    //         interrupt_flag = 0;
+    //     }
+    //     else if (interrupt_flag != 0 && debounce_check(time, interrupt_flag)){
+    //         set_rotation(interrupt_flag, interrupt_state);
+    //         printf("Interrupt from pin %d success\n", interrupt_flag);
+    //         time = to_ms_since_boot(get_absolute_time());
+    //         interrupt_flag = 0;
+    //     }
+    //     else if (interrupt_flag != 0){
+    //         printf("Debounced from pin %d\n", interrupt_flag);
+    //         interrupt_flag = 0;
+    //     }
+    
+    // }
 }
 
 
