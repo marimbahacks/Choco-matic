@@ -1,6 +1,6 @@
 add_executable(${PROJECT_NAME} 
     main.cpp
-    SpeedControl.cpp
+    MotorControl.cpp
     )
 
 #Pull in pico_stdlib

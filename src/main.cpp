@@ -2,7 +2,7 @@
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
 #include <stdio.h>
-#include "SpeedControl.h"
+#include "MotorControl.h"
 
 #define ROTATE_MAX 2500
 #define ROTATE_MIN 500
@@ -33,51 +33,51 @@ void check_button_callback(uint control_pin, uint32_t events){
    printf("Interrupt state: %d \n", interrupt_state);   
 }
 
-void pwm_pin_setup(uint control_pin){
-    //Set PWM functionality with default of 0
-    gpio_set_function(control_pin, GPIO_FUNC_PWM);
-    pwm_set_gpio_level(control_pin, 0);
+// void pwm_pin_setup(uint control_pin){
+//     //Set PWM functionality with default of 0
+//     gpio_set_function(control_pin, GPIO_FUNC_PWM);
+//     pwm_set_gpio_level(control_pin, 0);
 
-    //Find hardware PWM information
-    uint slice_num = pwm_gpio_to_slice_num(control_pin);
-    uint channel = pwm_gpio_to_channel(control_pin);
+//     //Find hardware PWM information
+//     uint slice_num = pwm_gpio_to_slice_num(control_pin);
+//     uint channel = pwm_gpio_to_channel(control_pin);
 
-    //PWM Adjustment Levers (12V DC Motor estimated start: 20kHz instead of 50Hz servo
-    uint period = 6250;
-    uint desired_output_hz = 10000;
+//     //PWM Adjustment Levers (12V DC Motor estimated start: 20kHz instead of 50Hz servo
+//     uint period = 6250;
+//     uint desired_output_hz = 10000;
 
-    //Get base of system clock (should be 125MHz)
-    uint32_t clock = clock_get_hz(clk_sys);
-    //Clock divider needed as lowest PWM freq of pi pico is 1.9kHz without
-    // div = clock (125MHz) / period of 6250 * freq desired (20000) makes clk div = 1
-    uint32_t clk_div = clock / (period * desired_output_hz);
-    printf("Clock divider is %d for PWM Pin %d\n", clk_div, control_pin);
-    //Clock division is 4 bit unsigned int (therefore 255 max)
-    //and sent in as float, therefore clock_divide can never be <1 or >255
-    if (clk_div < 1){
-        clk_div = 1;
-        //TO DO: add some logging here
-    }
-    if (clk_div > 255){
-        clk_div = 255;
-        //TO DO: add some logging here
-    }
+//     //Get base of system clock (should be 125MHz)
+//     uint32_t clock = clock_get_hz(clk_sys);
+//     //Clock divider needed as lowest PWM freq of pi pico is 1.9kHz without
+//     // div = clock (125MHz) / period of 6250 * freq desired (20000) makes clk div = 1
+//     uint32_t clk_div = clock / (period * desired_output_hz);
+//     printf("Clock divider is %d for PWM Pin %d\n", clk_div, control_pin);
+//     //Clock division is 4 bit unsigned int (therefore 255 max)
+//     //and sent in as float, therefore clock_divide can never be <1 or >255
+//     if (clk_div < 1){
+//         clk_div = 1;
+//         //TO DO: add some logging here
+//     }
+//     if (clk_div > 255){
+//         clk_div = 255;
+//         //TO DO: add some logging here
+//     }
 
-    pwm_config config = pwm_get_default_config();
-    //Change default config to include divider
-    pwm_config_set_clkdiv(&config, (float)clk_div);
+//     pwm_config config = pwm_get_default_config();
+//     //Change default config to include divider
+//     pwm_config_set_clkdiv(&config, (float)clk_div);
 
-    //Set wrap number
-    pwm_config_set_wrap(&config, period);
+//     //Set wrap number
+//     pwm_config_set_wrap(&config, period);
 
-    pwm_set_chan_level(slice_num, channel, 6249);
+//     pwm_set_chan_level(slice_num, channel, 6249);
 
-    //Initialize the slice found earlier
-    pwm_init(slice_num, &config, false);
-    // Enable PWM after setup is complete
-    pwm_set_enabled(slice_num, true);
-    printf("PWM Pin %d is enabled\n", control_pin);
-}
+//     //Initialize the slice found earlier
+//     pwm_init(slice_num, &config, false);
+//     // Enable PWM after setup is complete
+//     pwm_set_enabled(slice_num, true);
+//     printf("PWM Pin %d is enabled\n", control_pin);
+// }
 
 void button_setup(uint lift_button_pin, uint lower_button_pin){
     //Prep Button GPIOs
