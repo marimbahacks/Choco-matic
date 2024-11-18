@@ -1,6 +1,6 @@
 add_executable(${PROJECT_NAME} 
-    main.c
-    speed_control.c
+    main.cpp
+    SpeedControl.cpp
     )
 
 #Pull in pico_stdlib

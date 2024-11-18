@@ -1,10 +1,15 @@
-#include "speed_control.h"
+#include "SpeedControl.h"
 #include "pico/stdlib.h"
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
 #include <stdio.h>
 
-void set_rotation(int pin_pressed, enum gpio_irq_level button_state){
+SpeedControl::SpeedControl(int desired_speed)
+   :m_desired_speed{desired_speed}
+{
+}
+
+void SpeedControl::set_rotation(int pin_pressed, enum gpio_irq_level button_state){
 
     
     //6250 period, let's do half at first?

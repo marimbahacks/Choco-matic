@@ -2,7 +2,7 @@
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
 #include <stdio.h>
-#include "speed_control.h"
+#include "SpeedControl.h"
 
 #define ROTATE_MAX 2500
 #define ROTATE_MIN 500
