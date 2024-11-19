@@ -3,11 +3,38 @@
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
 #include <stdio.h>
+/*
+#define PWM_CONTROL_GPIO 0
+#define PWM_REVERSE_CONTROL_GPIO 14
+#define LIFT_UP_GPIO 2
+#define LOWER_DOWN_GPIO 16
+#define DEBOUNCE_TIMER 50
+*/
+volatile uint interrupt_flag = 0;
+//False = low, true = high?
+volatile uint32_t interrupt_state = GPIO_IRQ_EDGE_FALL;
 
-MotorControl::MotorControl(int desired_speed)
+//  GPIO_IRQ_LEVEL_LOW = 0x1u,  ///< IRQ when the GPIO pin is a logical 1
+//     GPIO_IRQ_LEVEL_HIGH = 0x2u, ///< IRQ when the GPIO pin is a logical 0
+//     GPIO_IRQ_EDGE_FALL = 0x4u,  ///< IRQ when the GPIO has transitioned from a logical 0 to a logical 1
+//     GPIO_IRQ_EDGE_RISE = 0x8u, 
+
+MotorControl::MotorControl()
    //To implement: percentage out of 6249
-   :m_desired_speed{desired_speed}
+   //:m_desired_speed{desired_speed},
+   :lift_up_gpio {2},
+   lower_down_gpio {16},
+   debounce_timer {50},
+   pwm_control_gpio {0},
+   pwm_reverse_control_gpio {14},
+   time {to_ms_since_boot(get_absolute_time())}
+
 {
+}
+
+void MotorControl::default_pwm_pin_setup(){
+    pwm_pin_setup(pwm_control_gpio);
+    pwm_pin_setup(pwm_reverse_control_gpio);
 }
 
 void MotorControl::pwm_pin_setup(uint control_pin){
@@ -61,27 +88,102 @@ void MotorControl::pwm_pin_setup(uint control_pin){
 }
 
 
-void MotorControl::set_rotation(int pin_pressed, enum gpio_irq_level button_state){
+void MotorControl::default_button_setup(){
+    button_setup(lift_up_gpio, lower_down_gpio);
+}
 
+void MotorControl::button_setup(uint lift_button_pin, uint lower_button_pin){
+    //Prep Button GPIOs
+    gpio_init(lift_button_pin);
+    gpio_init(lower_button_pin);
+
+    //Directionally pressing down makes the action
+    gpio_set_dir(lift_button_pin, GPIO_IN);
+    gpio_set_dir(lower_button_pin, GPIO_IN);
+
+    gpio_pull_up(lift_button_pin);
+    gpio_pull_up(lower_button_pin);
+
+    //Set up interrupt (event is falling edge on button press)
+    // 0x4 is edge low from SDK docs
+    gpio_set_irq_enabled_with_callback(lift_button_pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &check_button_callback);
     
-    //6250 period, let's do half at first?
-    if (interrupt_state == GPIO_IRQ_EDGE_FALL){
-        //90 should be neutral state
-        pwm_set_gpio_level(pin_pressed, degree_conversion(90));
+    gpio_set_irq_enabled_with_callback(lower_button_pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &check_button_callback);
+}
+
+void MotorControl::default_controller_enable_pin_setup(){
+    controller_enable_pin_setup(18);
+    controller_enable_pin_setup(19);
+}
+
+void MotorControl::controller_enable_pin_setup(uint enable){
+    gpio_init(enable);
+    gpio_set_dir(enable, GPIO_OUT);
+    gpio_put(enable, 1);
+
+}
+void MotorControl::set_rotation(int pin_pressed, uint32_t button_state){
+    if (interrupt_state == 4){
+        //GPIO_IRQ_EDGE_FALL
+        printf("Pin released/No pin is pressed\n");
+        //Both PWM pins at 0 should be no movement
+        pwm_set_gpio_level(pwm_control_gpio, 0);
+        pwm_set_gpio_level(pwm_reverse_control_gpio, 0);
+
     }
     //If green button is pressed down, move at full speed clockwise (up)
-    if (pin_pressed == LIFT_UP_GPIO){
+    //First PWM pin forward, 2nd backward
+    else if (pin_pressed == lift_up_gpio){
+        printf("Lift up pin is pressed\n");
         //Max speed forward
-        pwm_set_gpio_level(pin_pressed, degree_conversion(180));
+        pwm_set_gpio_level(pwm_control_gpio, 6249);
+        pwm_set_gpio_level(pwm_reverse_control_gpio, 0);
+
     }   
     //If red button is pressed down & green is not pressed, move full speed counter-clockwise (down)
-    else if (pin_pressed == LOWER_DOWN_GPIO){
+    //First PWM pin backward, 2nd forward
+    else if (pin_pressed == lower_down_gpio){
+        printf("Lower down pin is pressed\n");
         //Max speed backward
-        pwm_set_gpio_level(pin_pressed, degree_conversion(0));
+        pwm_set_gpio_level(pwm_control_gpio, 0);
+        pwm_set_gpio_level(pwm_reverse_control_gpio, 6249);
 
     }
-    //In all other scenarios, neutral motor speed/position
-    printf("No control pin pressed \n");
-    pwm_set_gpio_level(pin_pressed, degree_conversion(90));
-    //I have a bone to pick with MISRA not allowing multiple return statements
+    else {
+         //In all other scenarios, neutral motor speed/position
+        printf("No control pin pressed \n");
+        pwm_set_gpio_level(pwm_control_gpio, 0);
+        pwm_set_gpio_level(pwm_reverse_control_gpio, 0);
+    }
 }
+
+void static check_button_callback(uint control_pin, uint32_t event_mask){
+    //printf("Interupt triggered on GPIO %d with event %d \n", control_pin, events);
+    interrupt_flag = control_pin;
+    printf("Event Mask: %d", event_mask);
+    printf("Callback Pin: %d  triggered at state: %d\n", control_pin, interrupt_state);
+    interrupt_state = event_mask;
+    if (debounce_check(time, to_ms_since_boot(get_absolute_time()))){
+        printf("Passed debounce check\n");
+        set_rotation(control_pin, interrupt_state);
+        time = to_ms_since_boot(get_absolute_time());
+    }
+    else{
+       printf("Failed debounce check\n");
+    }
+   
+   
+}
+
+bool MotorControl::debounce_check(uint32_t previous_time, uint pin){
+    uint32_t current_time = to_ms_since_boot(get_absolute_time());
+    if (current_time - previous_time > debounce_timer){
+        return true;
+    }
+    return false;
+}
+
+//Spencer: servo control holdover, not needed in DC motor
+// uint MotorControl::degree_conversion(uint degree){
+//     return (((float)(ROTATE_MAX - ROTATE_MIN) / 180) * degree) + ROTATE_MIN;
+// }
