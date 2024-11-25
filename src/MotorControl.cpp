@@ -9,11 +9,11 @@
 #define LIFT_UP_GPIO 2
 #define LOWER_DOWN_GPIO 16
 #define DEBOUNCE_TIMER 50
-*/
+
 volatile uint interrupt_flag = 0;
 //False = low, true = high?
 volatile uint32_t interrupt_state = GPIO_IRQ_EDGE_FALL;
-
+*/
 //  GPIO_IRQ_LEVEL_LOW = 0x1u,  ///< IRQ when the GPIO pin is a logical 1
 //     GPIO_IRQ_LEVEL_HIGH = 0x2u, ///< IRQ when the GPIO pin is a logical 0
 //     GPIO_IRQ_EDGE_FALL = 0x4u,  ///< IRQ when the GPIO has transitioned from a logical 0 to a logical 1
@@ -32,6 +32,17 @@ MotorControl::MotorControl()
 {
 }
 
+void MotorControl::check_button(){
+    if (!gpio_get(lift_up_gpio)){
+        set_rotation(lift_up_gpio);
+    }
+    else if (!gpio_get(lower_down_gpio)){
+        set_rotation(lower_down_gpio);
+    }
+    else {
+        set_rotation(-1);
+    }
+}
 void MotorControl::default_pwm_pin_setup(){
     pwm_pin_setup(pwm_control_gpio);
     pwm_pin_setup(pwm_reverse_control_gpio);
@@ -106,9 +117,9 @@ void MotorControl::button_setup(uint lift_button_pin, uint lower_button_pin){
 
     //Set up interrupt (event is falling edge on button press)
     // 0x4 is edge low from SDK docs
-    gpio_set_irq_enabled_with_callback(lift_button_pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &check_button_callback);
+    // irq_set_exclusive_handler(lift_button_pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &check_button_callback);
     
-    gpio_set_irq_enabled_with_callback(lower_button_pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &check_button_callback);
+    // gpio_set_irq_enabled_with_callback(lower_button_pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &check_button_callback);
 }
 
 void MotorControl::default_controller_enable_pin_setup(){
@@ -122,18 +133,18 @@ void MotorControl::controller_enable_pin_setup(uint enable){
     gpio_put(enable, 1);
 
 }
-void MotorControl::set_rotation(int pin_pressed, uint32_t button_state){
-    if (interrupt_state == 4){
-        //GPIO_IRQ_EDGE_FALL
-        printf("Pin released/No pin is pressed\n");
-        //Both PWM pins at 0 should be no movement
-        pwm_set_gpio_level(pwm_control_gpio, 0);
-        pwm_set_gpio_level(pwm_reverse_control_gpio, 0);
+void MotorControl::set_rotation(int pin_pressed){
+    // //if (interrupt_state == 4){
+    //     //GPIO_IRQ_EDGE_FALL
+    //     printf("Pin released/No pin is pressed\n");
+    //     //Both PWM pins at 0 should be no movement
+    //     pwm_set_gpio_level(pwm_control_gpio, 0);
+    //     pwm_set_gpio_level(pwm_reverse_control_gpio, 0);
 
-    }
+    // }
     //If green button is pressed down, move at full speed clockwise (up)
     //First PWM pin forward, 2nd backward
-    else if (pin_pressed == lift_up_gpio){
+    if (pin_pressed == lift_up_gpio){
         printf("Lift up pin is pressed\n");
         //Max speed forward
         pwm_set_gpio_level(pwm_control_gpio, 6249);
@@ -147,7 +158,6 @@ void MotorControl::set_rotation(int pin_pressed, uint32_t button_state){
         //Max speed backward
         pwm_set_gpio_level(pwm_control_gpio, 0);
         pwm_set_gpio_level(pwm_reverse_control_gpio, 6249);
-
     }
     else {
          //In all other scenarios, neutral motor speed/position
@@ -157,23 +167,27 @@ void MotorControl::set_rotation(int pin_pressed, uint32_t button_state){
     }
 }
 
-void static check_button_callback(uint control_pin, uint32_t event_mask){
-    //printf("Interupt triggered on GPIO %d with event %d \n", control_pin, events);
-    interrupt_flag = control_pin;
-    printf("Event Mask: %d", event_mask);
-    printf("Callback Pin: %d  triggered at state: %d\n", control_pin, interrupt_state);
-    interrupt_state = event_mask;
-    if (debounce_check(time, to_ms_since_boot(get_absolute_time()))){
-        printf("Passed debounce check\n");
-        set_rotation(control_pin, interrupt_state);
-        time = to_ms_since_boot(get_absolute_time());
-    }
-    else{
-       printf("Failed debounce check\n");
-    }
+// void callback_helper(uint control_pin, uint32_t event_mask){
+//     interrupt_flag = control_pin;
+//     printf("Event Mask: %d", event_mask);
+//     printf("Callback Pin: %d  triggered at state: %d\n", control_pin, interrupt_state);
+//     interrupt_state = event_mask;
+//     if (debounce_check(motor->time, to_ms_since_boot(get_absolute_time()))){
+//         printf("Passed debounce check\n");
+//         motor->set_rotation(control_pin, interrupt_state);
+//         motor->time = to_ms_since_boot(get_absolute_time());
+//     }
+//     else{
+//        printf("Failed debounce check\n");
+//     }
+// }
+
+// void static dummy_handler(uint control_pin, uint32_t event_mask){
+    
+//     interrupt_instance->member_handler(control_pin, event_mask); 
    
    
-}
+// }
 
 bool MotorControl::debounce_check(uint32_t previous_time, uint pin){
     uint32_t current_time = to_ms_since_boot(get_absolute_time());

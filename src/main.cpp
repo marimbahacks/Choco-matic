@@ -43,7 +43,7 @@ int main(){
     //     pwm_set_gpio_level(PWM_CONTROL_GPIO, 0);
     //     pwm_set_gpio_level(PWM_REVERSE_CONTROL_GPIO, 0);
     //     sleep_ms((uint32_t)5000);
-    //     printf("Starting Reverse\n");
+    //     printf("                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          Reverse\n");
     //     pwm_set_gpio_level(PWM_CONTROL_GPIO, 0);
     //     pwm_set_gpio_level(PWM_REVERSE_CONTROL_GPIO, 6248);
     //     sleep_ms((uint32_t)5000);
@@ -53,9 +53,10 @@ int main(){
 
 
     while (true){
-        tight_loop_contents();
-
-        if (interrupt_state == GPIO_IRQ_EDGE_FALL){
+       // tight_loop_contents();
+        motor.check_button();
+        /*
+        if (!gpio.get(motor.lift_up_gpio)){
             printf("Pin %d is no longer pressed\n", interrupt_flag);
             set_rotation(interrupt_flag, interrupt_state);
             interrupt_flag = 0;
@@ -70,6 +71,7 @@ int main(){
             printf("Debounced from pin %d\n", interrupt_flag);
             interrupt_flag = 0;
         }
+        */
     
     }
 }
