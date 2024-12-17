@@ -3,21 +3,6 @@
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
 #include <stdio.h>
-/*
-#define PWM_CONTROL_GPIO 0
-#define PWM_REVERSE_CONTROL_GPIO 14
-#define LIFT_UP_GPIO 2
-#define LOWER_DOWN_GPIO 16
-#define DEBOUNCE_TIMER 50
-
-volatile uint interrupt_flag = 0;
-//False = low, true = high?
-volatile uint32_t interrupt_state = GPIO_IRQ_EDGE_FALL;
-*/
-//  GPIO_IRQ_LEVEL_LOW = 0x1u,  ///< IRQ when the GPIO pin is a logical 1
-//     GPIO_IRQ_LEVEL_HIGH = 0x2u, ///< IRQ when the GPIO pin is a logical 0
-//     GPIO_IRQ_EDGE_FALL = 0x4u,  ///< IRQ when the GPIO has transitioned from a logical 0 to a logical 1
-//     GPIO_IRQ_EDGE_RISE = 0x8u, 
 
 MotorControl::MotorControl()
    //To implement: percentage out of 6249
@@ -134,24 +119,13 @@ void MotorControl::controller_enable_pin_setup(uint enable){
 
 }
 void MotorControl::set_rotation(int pin_pressed){
-    // //if (interrupt_state == 4){
-    //     //GPIO_IRQ_EDGE_FALL
-    //     printf("Pin released/No pin is pressed\n");
-    //     //Both PWM pins at 0 should be no movement
-    //     pwm_set_gpio_level(pwm_control_gpio, 0);
-    //     pwm_set_gpio_level(pwm_reverse_control_gpio, 0);
-
-    // }
-    //If green button is pressed down, move at full speed clockwise (up)
-    //First PWM pin forward, 2nd backward
+    //Prio given to lifting up over lowering
     if (pin_pressed == lift_up_gpio){
         printf("Lift up pin is pressed\n");
         //Max speed forward
         pwm_set_gpio_level(pwm_control_gpio, 6249);
         pwm_set_gpio_level(pwm_reverse_control_gpio, 0);
-
-    }   
-    //If red button is pressed down & green is not pressed, move full speed counter-clockwise (down)
+    }
     //First PWM pin backward, 2nd forward
     else if (pin_pressed == lower_down_gpio){
         printf("Lower down pin is pressed\n");

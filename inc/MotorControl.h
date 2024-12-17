@@ -7,16 +7,16 @@
 class MotorControl{
     public:
         MotorControl();
-        void default_pwm_pin_setup();
+        //Remove default methods and overload
+        void default_pwm_pin_setup();   //spencer: remove
         void pwm_pin_setup(uint control_pin);
-        void default_button_setup();
-        void default_controller_enable_pin_setup();
-        void controller_enable_pin_setup(uint enable);
+        void default_button_setup();    //spencer: remove
         void button_setup(uint lift_button_pin, uint lower_button_pin);
+        void default_controller_enable_pin_setup(); //spencer : remove
+        void controller_enable_pin_setup(uint enable);
         void set_rotation(int pin_pressed);
         void check_button();
-        //Spencer: remove? currently unused, will need if merge wwth servo code happens
-        //uint degree_conversion(uint degree);
+    
         private:
         //int m_desired_speed;
         //Dont have close to 255 GPIO pin options, save some memory
