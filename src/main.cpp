@@ -20,13 +20,11 @@ int main(){
 
     stdio_init_all();
 
-    //Maybe struct with info on button + speed combined?
-
     MotorControl motor;
-    
-    motor.default_button_setup(); //Default
-    motor.default_pwm_pin_setup(); //Default
-    motor.default_controller_enable_pin_setup();
+    //Default layout
+    motor.button_setup(); 
+    motor.pwm_pin_setup(); 
+    motor.controller_enable_pin_setup();
 
 
     //Potential to adjust speeds, maybe ask user later?

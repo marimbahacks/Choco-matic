@@ -12,6 +12,7 @@ MotorControl::MotorControl()
    debounce_timer {50},
    pwm_control_gpio {0},
    pwm_reverse_control_gpio {14},
+   period {6250},
    time {to_ms_since_boot(get_absolute_time())}
 
 {
@@ -28,10 +29,11 @@ void MotorControl::check_button(){
         set_rotation(-1);
     }
 }
-void MotorControl::default_pwm_pin_setup(){
+void MotorControl::pwm_pin_setup(){
     pwm_pin_setup(pwm_control_gpio);
     pwm_pin_setup(pwm_reverse_control_gpio);
 }
+
 
 void MotorControl::pwm_pin_setup(uint control_pin){
     //Set PWM functionality with default of 0
@@ -43,7 +45,8 @@ void MotorControl::pwm_pin_setup(uint control_pin){
     uint channel = pwm_gpio_to_channel(control_pin);
 
     //PWM Adjustment Levers (12V DC Motor estimated start: 20kHz instead of 50Hz servo
-    uint period = 6250;
+    //period is now class member, can be adjusted here if necessary
+    period = period;
     uint desired_output_hz = 20000;
 
     //Get base of system clock (should be 125MHz)
@@ -74,7 +77,7 @@ void MotorControl::pwm_pin_setup(uint control_pin){
     //Set wrap number
     pwm_config_set_wrap(&config, period);
     //Spencer: speed adjustment percentage here or in separate method?
-    pwm_set_chan_level(slice_num, channel, 6249);
+    pwm_set_chan_level(slice_num, channel, period - 1);
 
     //Initialize the slice found earlier
     pwm_init(slice_num, &config, false);
@@ -84,7 +87,7 @@ void MotorControl::pwm_pin_setup(uint control_pin){
 }
 
 
-void MotorControl::default_button_setup(){
+void MotorControl::button_setup(){
     button_setup(lift_up_gpio, lower_down_gpio);
 }
 
@@ -107,9 +110,9 @@ void MotorControl::button_setup(uint lift_button_pin, uint lower_button_pin){
     // gpio_set_irq_enabled_with_callback(lower_button_pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &check_button_callback);
 }
 
-void MotorControl::default_controller_enable_pin_setup(){
-    controller_enable_pin_setup(18);
-    controller_enable_pin_setup(19);
+void MotorControl::controller_enable_pin_setup(){
+    controller_enable_pin_setup(pwm_control_gpio);
+    controller_enable_pin_setup(pwm_reverse_control_gpio);
 }
 
 void MotorControl::controller_enable_pin_setup(uint enable){
@@ -123,7 +126,7 @@ void MotorControl::set_rotation(int pin_pressed){
     if (pin_pressed == lift_up_gpio){
         printf("Lift up pin is pressed\n");
         //Max speed forward
-        pwm_set_gpio_level(pwm_control_gpio, 6249);
+        pwm_set_gpio_level(pwm_control_gpio, period - 1);
         pwm_set_gpio_level(pwm_reverse_control_gpio, 0);
     }
     //First PWM pin backward, 2nd forward
@@ -131,7 +134,7 @@ void MotorControl::set_rotation(int pin_pressed){
         printf("Lower down pin is pressed\n");
         //Max speed backward
         pwm_set_gpio_level(pwm_control_gpio, 0);
-        pwm_set_gpio_level(pwm_reverse_control_gpio, 6249);
+        pwm_set_gpio_level(pwm_reverse_control_gpio, period - 1);
     }
     else {
          //In all other scenarios, neutral motor speed/position
