@@ -102,12 +102,7 @@ void MotorControl::button_setup(uint lift_button_pin, uint lower_button_pin){
 
     gpio_pull_up(lift_button_pin);
     gpio_pull_up(lower_button_pin);
-
-    //Set up interrupt (event is falling edge on button press)
-    // 0x4 is edge low from SDK docs
-    // irq_set_exclusive_handler(lift_button_pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &check_button_callback);
     
-    // gpio_set_irq_enabled_with_callback(lower_button_pin, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, true, &check_button_callback);
 }
 
 void MotorControl::controller_enable_pin_setup(){
@@ -144,28 +139,6 @@ void MotorControl::set_rotation(int pin_pressed){
     }
 }
 
-// void callback_helper(uint control_pin, uint32_t event_mask){
-//     interrupt_flag = control_pin;
-//     printf("Event Mask: %d", event_mask);
-//     printf("Callback Pin: %d  triggered at state: %d\n", control_pin, interrupt_state);
-//     interrupt_state = event_mask;
-//     if (debounce_check(motor->time, to_ms_since_boot(get_absolute_time()))){
-//         printf("Passed debounce check\n");
-//         motor->set_rotation(control_pin, interrupt_state);
-//         motor->time = to_ms_since_boot(get_absolute_time());
-//     }
-//     else{
-//        printf("Failed debounce check\n");
-//     }
-// }
-
-// void static dummy_handler(uint control_pin, uint32_t event_mask){
-    
-//     interrupt_instance->member_handler(control_pin, event_mask); 
-   
-   
-// }
-
 bool MotorControl::debounce_check(uint32_t previous_time, uint pin){
     uint32_t current_time = to_ms_since_boot(get_absolute_time());
     if (current_time - previous_time > debounce_timer){
@@ -173,8 +146,3 @@ bool MotorControl::debounce_check(uint32_t previous_time, uint pin){
     }
     return false;
 }
-
-//Spencer: servo control holdover, not needed in DC motor
-// uint MotorControl::degree_conversion(uint degree){
-//     return (((float)(ROTATE_MAX - ROTATE_MIN) / 180) * degree) + ROTATE_MIN;
-// }
